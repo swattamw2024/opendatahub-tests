@@ -24,6 +24,7 @@ from tests.llama_stack.constants import (
 
 import os
 import tempfile
+from pathlib import Path
 
 import requests
 
@@ -316,3 +317,45 @@ def vector_store_create_file_from_url(url: str, llama_stack_client: LlamaStackCl
     except (requests.exceptions.RequestException, Exception) as e:
         LOGGER.warning(f"Failed to download and upload file {url}: {e}")
         raise
+
+
+@retry(
+    wait_timeout=240,
+    sleep=15,
+    exceptions_dict={Exception: []},
+)
+def vector_store_create_file_from_path(
+    file_path: Path,
+    llama_stack_client: LlamaStackClient,
+    vector_store: Any,
+) -> bool:
+    """
+    Uploads a local file to the files provider (files.create) and adds it to the vector store.
+
+    Args:
+        file_path: Path to the local file to upload
+        llama_stack_client: The configured LlamaStackClient
+        vector_store: The vector store to upload the file to
+
+    Returns:
+        bool: True if successful, raises exception if failed
+    """
+    if not file_path.is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    LOGGER.info(f"Uploading local file {file_path.name} to the LlamaStack files provider")
+    with open(file_path, "rb") as file_to_upload:
+        uploaded_file = llama_stack_client.files.create(file=file_to_upload, purpose="assistants")
+
+    llama_stack_client.vector_stores.files.create(
+        vector_store_id=vector_store.id,
+        file_id=uploaded_file.id,
+        chunking_strategy={
+            "type": "static",
+            "static": {
+                "max_chunk_size_tokens": 384,
+                "chunk_overlap_tokens": 64,
+            },
+        },
+    )
+    return True

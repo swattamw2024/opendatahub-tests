@@ -1,5 +1,6 @@
 import os
 from collections.abc import Callable, Generator
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -24,7 +25,7 @@ from tests.llama_stack.constants import (
 )
 from tests.llama_stack.utils import (
     create_llama_stack_distribution,
-    vector_store_create_file_from_url,
+    vector_store_create_file_from_path,
     wait_for_llama_stack_client_ready,
     wait_for_unique_llama_stack_pod,
 )
@@ -73,9 +74,9 @@ LLAMA_STACK_DISTRIBUTION_SECRET_DATA = {
     "aws-secret-access-key": LLS_CORE_AWS_SECRET_ACCESS_KEY,
 }
 
-IBM_EARNINGS_DOC_URL = (
-    "https://raw.githubusercontent.com/opendatahub-io/opendatahub-tests/main/tests/llama_stack/"
-    "dataset/corpus/finance/ibm-4q25-earnings-press-release-unencrypted.pdf"
+_LLS_TEST_ROOT = Path(__file__).resolve().parent
+IBM_EARNINGS_DOC_PATH = (
+    _LLS_TEST_ROOT / "dataset/corpus/finance/ibm-4q25-earnings-press-release-unencrypted.pdf"
 )
 
 UPGRADE_DISTRIBUTION_NAME = "llama-stack-distribution-upgrade"
@@ -871,9 +872,15 @@ def vector_store_with_example_docs(
     """
     if pytestconfig.option.post_upgrade:
         LOGGER.info("Post-upgrade run: reusing vector store docs without uploading new files")
+        files = unprivileged_llama_stack_client.files.list()
+        if not files.data:
+            pytest.fail(
+                "Post-upgrade RAG requires documents indexed during pre-upgrade; "
+                "files API returned 0 files. Fix pre-upgrade corpus upload first."
+            )
     else:
-        vector_store_create_file_from_url(
-            url=IBM_EARNINGS_DOC_URL,
+        vector_store_create_file_from_path(
+            file_path=IBM_EARNINGS_DOC_PATH,
             llama_stack_client=unprivileged_llama_stack_client,
             vector_store=vector_store,
         )
