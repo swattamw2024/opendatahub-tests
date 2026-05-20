@@ -473,6 +473,12 @@ def vector_store(
         if not vector_store:
             raise ValueError("Expected vector store 'test_vector_store' to exist in post-upgrade run")
         LOGGER.info(f"Reusing existing vector_store in post-upgrade run (id={vector_store.id})")
+        files = ogx_client.files.list()
+        if not files.data:
+            pytest.fail(
+                "Post-upgrade RAG requires documents indexed during pre-upgrade; "
+                "files API returned 0 files. Fix pre-upgrade corpus upload first."
+            )
     else:
         vector_store = ogx_client.vector_stores.create(
             name="test_vector_store",
